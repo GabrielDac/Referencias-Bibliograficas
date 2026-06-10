@@ -16,10 +16,7 @@ de sesión exportable.
   búsqueda avanzada por título, autor y año con selección de bases.
 - **Bases consultadas**: CrossRef, PubMed, SciELO, Open Library y Google
   Books; páginas web, blogs y revistas OJS mediante lectura de metadatos
-  (Dublin Core, Open Graph, Highwire); YouTube mediante oEmbed. La
-  Biblioteca Nacional y Timbó no ofrecen API pública, por lo que se
-  integran como bases seleccionables que abren la búsqueda en su propio
-  sitio.
+  (Dublin Core, Open Graph, Highwire); YouTube mediante oEmbed.
 - **Metadatos editables**: todo dato recuperado puede corregirse y la
   referencia se regenera al instante.
 - **Entrada manual** por tipo de documento: artículo, libro, **capítulo o
@@ -55,10 +52,6 @@ python app.py
 
 Abrí `http://127.0.0.1:5000` en el navegador.
 
-## Publicación en la web
-
-Ver [GUIA_PUBLICACION.md](GUIA_PUBLICACION.md): pasos para alojarla gratis
-con GitHub y Render.
 
 ## Estructura
 
