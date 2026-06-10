@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Referencias — Generador de referencias bibliográficas</title>
+<meta name="description" content="Busca publicaciones en CrossRef, PubMed, SciELO, Open Library y Google Books y genera referencias en Vancouver, APA 7, ISO 690 y Chicago.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="marca">
+    <h1>Referencias</h1>
+    <p class="lema">Buscá una publicación, corregí sus datos y citala en la norma que necesites.</p>
+  </div>
+  <div class="controles-cabecera">
+    <button id="btn-tema" class="boton-sutil" type="button" aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">◐</button>
+  </div>
+</header>
+
+<main class="principal">
+
+  <!-- ───────── Columna de búsqueda ───────── -->
+  <section class="panel" id="panel-busqueda" aria-labelledby="t-busqueda">
+    <h2 id="t-busqueda">1 · Buscar</h2>
+
+    <label for="q" class="etiqueta">Pegá lo que tengas</label>
+    <p class="ayuda" id="ayuda-q">Acepta DOI, ISBN, PMID, YouTube, página web o blog.</p>
+    <div class="fila-busqueda">
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             aria-describedby="ayuda-q"
+             placeholder="ej.: 10.1097/j.pain.0000000000001384 · 9789974323456 · https://…">
+      <button id="btn-buscar" class="boton-primario" type="button">Buscar</button>
+    </div>
+
+    <details class="avanzada">
+      <summary>Búsqueda avanzada (título, autor, año y bases)</summary>
+      <div class="grilla-avanzada">
+        <div>
+          <label for="av-titulo" class="etiqueta">Título</label>
+          <input id="av-titulo" type="text" placeholder="palabras del título">
+        </div>
+        <div>
+          <label for="av-autor" class="etiqueta">Autor</label>
+          <input id="av-autor" type="text" placeholder="ej.: García Juan">
+        </div>
+        <div>
+          <label for="av-anio" class="etiqueta">Año</label>
+          <input id="av-anio" type="text" inputmode="numeric" placeholder="ej.: 2019">
+        </div>
+      </div>
+      <fieldset class="fuentes">
+        <legend class="etiqueta">Bases a consultar</legend>
+        <label><input type="checkbox" class="chk-fuente" value="crossref" checked> CrossRef</label>
+        <label><input type="checkbox" class="chk-fuente" value="scielo" checked> SciELO</label>
+        <label><input type="checkbox" class="chk-fuente" value="pubmed" checked> PubMed</label>
+        <label><input type="checkbox" class="chk-fuente" value="googlebooks" checked> Google Books</label>
+        <label><input type="checkbox" class="chk-fuente" value="openlibrary" checked> Open Library</label>
+      </fieldset>
+      <button id="btn-avanzada" class="boton-secundario" type="button">Buscar con estos criterios</button>
+    </details>
+
+    <p id="estado" class="estado" role="status" aria-live="polite"></p>
+
+    <div id="zona-autores" hidden>
+      <h3 class="subencabezado">Autores encontrados</h3>
+      <p class="ayuda">Elegí una persona para ver solo su producción.</p>
+      <div id="chips-autores" class="chips"></div>
+    </div>
+
+    <div id="zona-resultados" hidden>
+      <h3 class="subencabezado">Publicaciones <span id="cuenta-resultados" class="insignia"></span></h3>
+      <ul id="lista-resultados" class="resultados"></ul>
+    </div>
+
+    <div class="manual">
+      <h3 class="subencabezado">¿No está en las bases?</h3>
+      <p class="ayuda">Elegí el tipo y completá el formulario de al lado.</p>
+      <div class="fila-manual">
+        <label for="tipo-manual" class="visualmente-oculto">Tipo de documento</label>
+        <select id="tipo-manual">
+          <option value="articulo">Artículo de revista</option>
+          <option value="libro">Libro</option>
+          <option value="capitulo">Capítulo o contribución en libro</option>
+          <option value="web">Página web</option>
+          <option value="blog">Entrada de blog</option>
+          <option value="video">Video (YouTube u otra plataforma)</option>
+          <option value="tesis">Tesis</option>
+          <option value="informe">Informe</option>
+        </select>
+        <button id="btn-manual" class="boton-secundario" type="button">Entrada manual</button>
+      </div>
+    </div>
+
+    <div class="fila-norma">
+      <span class="etiqueta">Norma</span>
+      <fieldset class="selector-norma" id="selector-normas" aria-label="Norma bibliográfica">
+        <legend class="visualmente-oculto">Norma bibliográfica</legend>
+      </fieldset>
+    </div>
+
+    <div id="zona-vista" hidden>
+      <h3 class="subencabezado">Referencia (<span id="nombre-norma">APA 7</span>)</h3>
+      <div id="vista-ref" class="hoja"></div>
+      <p class="linea-en-texto">Cita en el texto: <code id="vista-en-texto"></code></p>
+      <div id="avisos" class="avisos" hidden></div>
+      <div class="acciones">
+        <button id="btn-copiar-ref" class="boton-secundario" type="button" title="Copia con cursivas reales, lista para pegar en Word o Writer">Copiar con formato</button>
+        <button id="btn-copiar-texto" class="boton-sutil" type="button">Copiar texto plano</button>
+        <button id="btn-agregar" class="boton-primario" type="button">Añadir a la bibliografía ↓</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Columna del registro ───────── -->
+  <section class="panel" id="panel-registro" aria-labelledby="t-registro">
+    <h2 id="t-registro">2 · Revisar y corregir</h2>
+    <p class="ayuda">Todo dato recuperado se puede corregir; la referencia se actualiza sola.</p>
+
+    <div id="sin-registro" class="vacio">
+      <p>Todavía no hay ningún registro cargado.<br>Buscá una publicación o usá la entrada manual.</p>
+    </div>
+
+    <form id="form-registro" hidden autocomplete="off">
+      <div class="fila-tipo">
+        <label for="campo-tipo" class="etiqueta">Tipo de documento</label>
+        <select id="campo-tipo"></select>
+        <span id="insignia-fuente" class="insignia" title="Base de la que provienen los datos"></span>
+      </div>
+      <div id="campos"></div>
+    </form>
+
+  </section>
+
+  <!-- ───────── Bibliografía ───────── -->
+  <section class="panel panel-ancho" id="panel-biblio" aria-labelledby="t-biblio">
+    <div class="encabezado-biblio">
+      <h2 id="t-biblio">3 · Bibliografía <span id="cuenta-biblio" class="insignia"></span></h2>
+      <p id="nota-orden" class="ayuda"></p>
+    </div>
+
+    <div id="biblio-vacia" class="vacio">
+      <p>La bibliografía de esta sesión aparecerá aquí, ordenada automáticamente según la norma elegida. Se conserva en este navegador hasta que la limpies.</p>
+    </div>
+
+    <ol id="lista-biblio" class="hoja lista-biblio"></ol>
+
+    <div class="acciones acciones-biblio" id="acciones-biblio" hidden>
+      <button id="btn-copiar-biblio" class="boton-primario" type="button" title="Copia toda la lista con cursivas reales">Copiar todo con formato</button>
+      <label class="exportar">
+        Descargar como
+        <select id="sel-exportar">
+          <option value="rtf">RTF — se abre en Word / Writer</option>
+          <option value="html">HTML — página web</option>
+          <option value="ris">RIS — Zotero / Mendeley</option>
+          <option value="bibtex">BibTeX — LaTeX</option>
+          <option value="txt">Texto plano</option>
+        </select>
+      </label>
+      <button id="btn-exportar" class="boton-secundario" type="button">Descargar</button>
+      <button id="btn-limpiar" class="boton-peligro" type="button">Limpiar bibliografía</button>
+    </div>
+  </section>
+  <!-- ───────── Editor de normas ───────── -->
+  <section class="panel panel-ancho" id="panel-normas" aria-labelledby="t-normas">
+    <details class="avanzada">
+      <summary><strong>4 · Editor de normas</strong> — ajustá las plantillas cuando una norma cambie</summary>
+      <p class="ayuda">Cada plantilla combina texto fijo, <code>{campos}</code> y grupos opcionales <code>[[ … ]]</code> que solo se imprimen si todos sus campos tienen valor. Cursivas: <code>&lt;i&gt;…&lt;/i&gt;</code>. Los cambios se guardan en este navegador y podés volver a la versión original cuando quieras.</p>
+      <div class="grilla-normas">
+        <div>
+          <label for="ed-norma" class="etiqueta">Norma</label>
+          <select id="ed-norma"></select>
+        </div>
+        <div>
+          <label for="ed-tipo" class="etiqueta">Tipo de documento</label>
+          <select id="ed-tipo"></select>
+        </div>
+        <div class="estado-plantilla">
+          <span id="insignia-editada" class="insignia insignia-editada" hidden>Editada</span>
+        </div>
+      </div>
+      <label for="ed-plantilla" class="etiqueta">Plantilla</label>
+      <textarea id="ed-plantilla" rows="3" spellcheck="false" class="mono"></textarea>
+      <p class="ayuda">Campos: autores, editores, rotulo_editores, titulo, año, fecha, revista, libro, sitio, blog, plataforma, volumen, numero, paginas, paginas_totales, edicion, editorial, lugar, casa, institucion, isbn, issn, doi, pmid, url, enlace, fecha_acceso, en_linea, clase.</p>
+      <h3 class="subencabezado">Vista previa con datos de ejemplo</h3>
+      <div id="ed-vista" class="hoja"></div>
+      <div class="acciones">
+        <button id="ed-guardar" class="boton-primario" type="button">Guardar esta plantilla</button>
+        <button id="ed-reset-tipo" class="boton-sutil" type="button">Restablecer este tipo</button>
+        <button id="ed-reset-norma" class="boton-sutil" type="button">Restablecer esta norma</button>
+        <button id="ed-reset-todo" class="boton-peligro" type="button">Restablecer todo</button>
+        <button id="ed-exportar" class="boton-sutil" type="button" title="Descarga tus plantillas editadas como archivo">Exportar ediciones</button>
+        <label class="boton-sutil etiqueta-archivo">Importar ediciones<input type="file" id="ed-importar" accept=".json" hidden></label>
+      </div>
+    </details>
+  </section>
+</main>
+
+<footer class="pie">
+  <p>© 2026 Gabriel Da Costa Porto Luzardo · Software libre bajo licencia
+    <a href="https://www.gnu.org/licenses/gpl-3.0.es.html" target="_blank" rel="noopener">GNU GPL-3.0</a>.
+    Bases consultadas: CrossRef, PubMed, SciELO, Open Library, Google Books.</p>
+</footer>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

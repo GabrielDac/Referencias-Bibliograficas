@@ -1,0 +1,84 @@
+{
+  "_ayuda": "Cada plantilla combina texto fijo, {campos} y grupos opcionales [[ … ]]. Un grupo solo se imprime si todos sus campos tienen valor. Campos disponibles: autores, editores, rotulo_editores, titulo, año, fecha, revista, libro, sitio, blog, plataforma, volumen, numero, paginas, paginas_totales, edicion, editorial, lugar, casa, institucion, isbn, issn, doi, pmid, url, enlace, fecha_acceso, en_linea, clase. Las cursivas se marcan con <i>…</i>.",
+
+  "apa7": {
+    "nombre": "APA 7",
+    "orden": "alfabetico",
+    "estilo_autores": "apa",
+    "estilo_editores": "apa",
+    "estilo_cita": "apa",
+    "estilo_enlace": "apa",
+    "tipos": {
+      "articulo": "[[{autores} ]]({año}). {titulo}.[[ <i>{revista}</i>]][[, <i>{volumen}</i>]][[({numero})]][[, {paginas}]].[[ {enlace}]]",
+      "articulo_sin_autor": "{titulo}. ({año}).[[ <i>{revista}</i>]][[, <i>{volumen}</i>]][[({numero})]][[, {paginas}]].[[ {enlace}]]",
+      "libro": "[[{autores} ]]({año}). <i>{titulo}</i>[[ ({edicion})]].[[ {editorial}.]][[ {enlace}]]",
+      "libro_sin_autor": "<i>{titulo}</i>[[ ({edicion})]]. ({año}).[[ {editorial}.]][[ {enlace}]]",
+      "capitulo": "[[{autores} ]]({año}). {titulo}. En[[ {editores} ({rotulo_editores}),]][[ <i>{libro}</i>]][[ (pp. {paginas})]].[[ {editorial}.]][[ {enlace}]]",
+      "web": "[[{autores} ]]({fecha}). <i>{titulo}</i>.[[ {sitio}.]][[ {url}]]",
+      "web_sin_autor": "<i>{titulo}</i>. ({fecha}).[[ {sitio}.]][[ {url}]]",
+      "blog": "[[{autores} ]]({fecha}). {titulo}. [[<i>{blog}</i>.]][[ {url}]]",
+      "video": "[[{autores} ]]({fecha}). <i>{titulo}</i> [Video].[[ {plataforma}.]][[ {url}]]",
+      "tesis": "[[{autores} ]]({año}). <i>{titulo}</i> [{clase}[[, {institucion}]]].[[ {url}]]",
+      "informe": "[[{autores} ]]({año}). <i>{titulo}</i>.[[ {institucion}.]][[ {url}]]"
+    }
+  },
+
+  "vancouver": {
+    "nombre": "Vancouver",
+    "orden": "insercion",
+    "estilo_autores": "vancouver",
+    "estilo_editores": "vancouver",
+    "estilo_cita": "vancouver",
+    "estilo_enlace": "vancouver",
+    "tipos": {
+      "articulo": "[[{autores}. ]]{titulo}.[[ {revista}.]] {año}[[;{volumen}]][[({numero})]][[:{paginas}]].[[ {enlace}]]",
+      "libro": "[[{autores}. ]]{titulo}.[[ {edicion}.]][[ {casa};]] {año}.[[ {paginas_totales} p.]]",
+      "capitulo": "[[{autores}. ]]{titulo}. En:[[ {editores}, {rotulo_editores}.]][[ {libro}.]][[ {casa};]] {año}.[[ p. {paginas}.]]",
+      "web": "[[{autores}. ]]{titulo} [Internet].[[ {sitio};]] {año}[[ [citado {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "blog": "[[{autores}. ]]{titulo} [blog en Internet].[[ {blog};]] {año}[[ [citado {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "video": "[[{autores}. ]]{titulo} [video en Internet].[[ {plataforma};]] {año}[[ [citado {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "tesis": "[[{autores}. ]]{titulo} [tesis].[[ {institucion};]] {año}.[[ Disponible en: {url}]]",
+      "informe": "[[{autores}. ]]{titulo}.[[ {institucion}.]] {año}.[[ Disponible en: {url}]]"
+    }
+  },
+
+  "iso690": {
+    "nombre": "ISO 690",
+    "orden": "alfabetico",
+    "estilo_autores": "iso",
+    "estilo_editores": "iso",
+    "estilo_cita": "iso",
+    "estilo_enlace": "iso",
+    "tipos": {
+      "articulo": "[[{autores}. ]]{titulo}{en_linea}.[[ <i>{revista}</i>.]] {año}[[, vol. {volumen}]][[, n.º {numero}]][[, pp. {paginas}]][[ [consulta: {fecha_acceso}] ]].[[ ISSN {issn}.]][[ {enlace}]]",
+      "libro": "[[{autores}. ]]<i>{titulo}</i>{en_linea}.[[ {edicion}.]][[ {casa},]] {año}.[[ ISBN {isbn}.]][[ {enlace}]]",
+      "capitulo": "[[{autores}. ]]{titulo}. En:[[ {editores} ({rotulo_editores}).]][[ <i>{libro}</i>.]][[ {casa},]] {año}[[, pp. {paginas}]].[[ ISBN {isbn}.]]",
+      "web": "[[{autores}. ]]<i>{titulo}</i> [en línea].[[ {sitio},]] {año}[[ [consulta: {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "blog": "[[{autores}. ]]<i>{titulo}</i> [entrada de blog].[[ {blog},]] {año}[[ [consulta: {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "video": "[[{autores}. ]]<i>{titulo}</i> [video en línea].[[ {plataforma},]] {año}[[ [consulta: {fecha_acceso}] ]].[[ Disponible en: {url}]]",
+      "tesis": "[[{autores}. ]]<i>{titulo}</i> [tesis].[[ {institucion},]] {año}.[[ {enlace}]]",
+      "informe": "[[{autores}. ]]<i>{titulo}</i>{en_linea}.[[ {institucion},]] {año}.[[ {enlace}]]"
+    }
+  },
+
+  "chicago": {
+    "nombre": "Chicago",
+    "orden": "alfabetico",
+    "estilo_autores": "chicago",
+    "estilo_editores": "chicago",
+    "estilo_cita": "chicago",
+    "estilo_enlace": "apa",
+    "tipos": {
+      "articulo": "[[{autores}. ]]{año}. \"{titulo}\".[[ <i>{revista}</i>]][[ {volumen}]][[, n.º {numero}]][[: {paginas}]].[[ {enlace}.]]",
+      "articulo_sin_autor": "\"{titulo}\". {año}.[[ <i>{revista}</i>]][[ {volumen}]][[, n.º {numero}]][[: {paginas}]].[[ {enlace}.]]",
+      "libro": "[[{autores}. ]]{año}. <i>{titulo}</i>.[[ {casa}.]]",
+      "capitulo": "[[{autores}. ]]{año}. \"{titulo}\". En <i>{libro}</i>[[, editado por {editores}]][[, {paginas}]].[[ {casa}.]]",
+      "web": "[[{autores}. ]]{año}. \"{titulo}\".[[ {sitio}.]][[ Consultado el {fecha_acceso}.]][[ {url}]]",
+      "web_sin_autor": "\"{titulo}\". {año}.[[ {sitio}.]][[ Consultado el {fecha_acceso}.]][[ {url}]]",
+      "blog": "[[{autores}. ]]{año}. \"{titulo}\".[[ <i>{blog}</i>.]][[ Consultado el {fecha_acceso}.]][[ {url}]]",
+      "video": "[[{autores}. ]]{año}. \"{titulo}\".[[ {plataforma}.]] Video.[[ Consultado el {fecha_acceso}.]][[ {url}]]",
+      "tesis": "[[{autores}. ]]{año}. \"{titulo}\". Tesis[[, {institucion}]].[[ {url}]]",
+      "informe": "[[{autores}. ]]{año}. <i>{titulo}</i>.[[ {institucion}.]][[ {url}]]"
+    }
+  }
+}
