@@ -352,7 +352,10 @@ function mostrarChipsAutores(consultaAutor) {
   const zona = $("zona-autores");
   const cont = $("chips-autores");
   cont.innerHTML = "";
-  if (vistos.size < 2 || vistos.size > 40) { zona.hidden = true; return; }
+  // Si se buscó por autor, un solo chip ya sirve: filtra los resultados
+  // ajenos que las bases devuelven por coincidencia laxa.
+  const minimo = consultaAutor ? 1 : 2;
+  if (vistos.size < minimo || vistos.size > 40) { zona.hidden = true; return; }
   for (const [clave, nombre] of vistos) {
     const b = document.createElement("button");
     b.type = "button";
@@ -482,6 +485,59 @@ function nombreNorma(clave) {
 }
 
 let fichaBiblio = 0;
+
+function dibujarItemsBiblio(items, lista) {
+  lista.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = "item-ref";
+
+    const texto = document.createElement("div");
+    texto.className = "texto-ref";
+    texto.innerHTML = (item.numero ? `<span class="num">${item.numero}.</span> ` : "") + item.html;
+
+    const herr = document.createElement("div");
+    herr.className = "herramientas";
+    const mkBtn = (rotulo, titulo, fn) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = rotulo; b.title = titulo;
+      b.setAttribute("aria-label", titulo);
+      b.addEventListener("click", fn);
+      return b;
+    };
+    herr.append(
+      mkBtn("⧉", "Copiar esta referencia con formato", async () => {
+        await copiarRico(item.html, item.texto);
+        ponerEstadoBiblio("✓ Referencia copiada.");
+      }),
+      mkBtn("✎", "Editar esta referencia", () => {
+        cargarRegistro(estado.biblio[item.indice], item.indice);
+      }),
+      mkBtn("↑", "Subir (cambia el número en Vancouver)", () => moverRef(item.indice, -1)),
+      mkBtn("↓", "Bajar", () => moverRef(item.indice, +1)),
+      mkBtn("✕", "Quitar de la bibliografía", () => {
+        estado.biblio.splice(item.indice, 1);
+        if (estado.editandoBiblio === item.indice) estado.editandoBiblio = null;
+        guardarBiblio(); pintarBiblio();
+      }),
+    );
+
+    li.append(texto, herr);
+
+    const pie = document.createElement("div");
+    pie.className = "pie-item";
+    let piezas = [`Cita en el texto: ${item.en_texto}`];
+    if (item.avisos.length) {
+      piezas.push(`⚠ falta: ${item.avisos.join(", ")}`);
+    }
+    pie.textContent = piezas.join("   ·   ");
+    if (item.avisos.length) pie.classList.add("aviso-mini");
+    li.appendChild(pie);
+
+    lista.appendChild(li);
+  }
+}
+
 async function pintarBiblio(intento = 0) {
   const lista = $("lista-biblio");
   const vacia = $("biblio-vacia");
@@ -496,59 +552,25 @@ async function pintarBiblio(intento = 0) {
     return;
   }
   vacia.hidden = true; lista.hidden = false; acciones.hidden = false;
+  // Pintura instantánea: si hay una versión formateada guardada de esta
+  // misma bibliografía, se muestra ya — y se actualiza cuando responda el
+  // servidor (que en el plan gratuito puede tardar en despertar).
+  if (intento === 0 && !lista.childElementCount) {
+    const cache = leerGuardado("biblio_render", "null");
+    if (cache && cache.norma === estado.norma && cache.n === estado.biblio.length
+        && Array.isArray(cache.items)) {
+      dibujarItemsBiblio(cache.items, lista);
+    }
+  }
   const ficha = ++fichaBiblio;
   try {
     const r = await api("/api/biblio", { refs: estado.biblio, norma: estado.norma, plantillas: estado.plantillas });
     if (ficha !== fichaBiblio) return;
-    lista.innerHTML = "";
-    for (const item of r.items) {
-      const li = document.createElement("li");
-      li.className = "item-ref";
-
-      const texto = document.createElement("div");
-      texto.className = "texto-ref";
-      texto.innerHTML = (item.numero ? `<span class="num">${item.numero}.</span> ` : "") + item.html;
-
-      const herr = document.createElement("div");
-      herr.className = "herramientas";
-      const mkBtn = (rotulo, titulo, fn) => {
-        const b = document.createElement("button");
-        b.type = "button"; b.textContent = rotulo; b.title = titulo;
-        b.setAttribute("aria-label", titulo);
-        b.addEventListener("click", fn);
-        return b;
-      };
-      herr.append(
-        mkBtn("⧉", "Copiar esta referencia con formato", async () => {
-          await copiarRico(item.html, item.texto);
-          ponerEstadoBiblio("✓ Referencia copiada.");
-        }),
-        mkBtn("✎", "Editar esta referencia", () => {
-          cargarRegistro(estado.biblio[item.indice], item.indice);
-        }),
-        mkBtn("↑", "Subir (cambia el número en Vancouver)", () => moverRef(item.indice, -1)),
-        mkBtn("↓", "Bajar", () => moverRef(item.indice, +1)),
-        mkBtn("✕", "Quitar de la bibliografía", () => {
-          estado.biblio.splice(item.indice, 1);
-          if (estado.editandoBiblio === item.indice) estado.editandoBiblio = null;
-          guardarBiblio(); pintarBiblio();
-        }),
-      );
-
-      li.append(texto, herr);
-
-      const pie = document.createElement("div");
-      pie.className = "pie-item";
-      let piezas = [`Cita en el texto: ${item.en_texto}`];
-      if (item.avisos.length) {
-        piezas.push(`⚠ falta: ${item.avisos.join(", ")}`);
-      }
-      pie.textContent = piezas.join("   ·   ");
-      if (item.avisos.length) pie.classList.add("aviso-mini");
-      li.appendChild(pie);
-
-      lista.appendChild(li);
-    }
+    dibujarItemsBiblio(r.items, lista);
+    try {
+      localStorage.setItem("biblio_render", JSON.stringify(
+        { norma: estado.norma, n: estado.biblio.length, items: r.items }));
+    } catch (e) { /* sin espacio: se sigue sin caché */ }
   } catch (e) {
     if (ficha !== fichaBiblio) return;
     // Falla típica del plan gratuito de Render: la instancia se durmió y
@@ -559,7 +581,7 @@ async function pintarBiblio(intento = 0) {
       setTimeout(() => {
         if (ficha === fichaBiblio) pintarBiblio(intento + 1);
       }, espera * 1000);
-    } else {
+    } else if (!lista.childElementCount) {
       lista.innerHTML = "";
       const li = document.createElement("li");
       li.className = "item-ref";
@@ -574,6 +596,8 @@ async function pintarBiblio(intento = 0) {
       li.appendChild(aviso);
       lista.appendChild(li);
       ponerEstadoBiblio(e.message);
+    } else {
+      ponerEstadoBiblio("Se muestra la última versión guardada; el servidor no respondió para actualizarla.");
     }
   }
 }
