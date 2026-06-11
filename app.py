@@ -41,6 +41,13 @@ UA = "ReferenciasWeb/2.0 (herramienta educativa; mailto:refgenerator@gmail.com)"
 #  UTILIDADES DE RED
 # ─────────────────────────────────────────────
 
+# Claves opcionales (se definen como variables de entorno en Render):
+#   NCBI_API_KEY      → sube el límite de consultas de PubMed (gratuita, cuenta NCBI)
+#   GOOGLE_BOOKS_KEY  → evita bloqueos de Google Books en servidores compartidos
+NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "")
+GOOGLE_BOOKS_KEY = os.environ.get("GOOGLE_BOOKS_KEY", "")
+
+
 def fetch_json(url):
     try:
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
@@ -50,14 +57,23 @@ def fetch_json(url):
         return None
 
 
-def fetch_html(url):
-    """Descarga HTML. Devuelve (html, url_final) o (None, None)."""
+def fetch_bytes(url):
+    """Descarga cruda. Devuelve (bytes, url_final, content_type) o (None, None, "")."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 " + UA})
         with urllib.request.urlopen(req, timeout=15) as resp:
-            return resp.read().decode("utf-8", errors="replace"), resp.url
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            return resp.read(), resp.url, ctype
     except Exception:
+        return None, None, ""
+
+
+def fetch_html(url):
+    """Descarga HTML. Devuelve (html, url_final) o (None, None)."""
+    data, url_final, _ = fetch_bytes(url)
+    if data is None:
         return None, None
+    return data.decode("utf-8", errors="replace"), url_final
 
 # ─────────────────────────────────────────────
 #  UTILIDADES DE TEXTO
@@ -200,9 +216,17 @@ def normalizar_crossref(m):
     return m
 
 
+def _params_ncbi():
+    """Parámetros que NCBI recomienda para identificar la herramienta."""
+    extra = "&tool=referenciasweb&email=refgenerator@gmail.com"
+    if NCBI_API_KEY:
+        extra += f"&api_key={NCBI_API_KEY}"
+    return extra
+
+
 def buscar_pubmed_pmid(pmid):
     url = (f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-           f"?db=pubmed&id={pmid}&retmode=json")
+           f"?db=pubmed&id={pmid}&retmode=json{_params_ncbi()}")
     data = fetch_json(url)
     if data:
         info = data.get("result", {}).get(str(pmid))
@@ -214,10 +238,12 @@ def buscar_pubmed_pmid(pmid):
 def normalizar_pubmed(info, pmid):
     autores = [parse_nombre(a.get("name", "").replace(" ", ", ", 1))
                for a in info.get("authors", []) if a.get("name")]
-    doi = next((e["value"] for e in info.get("elocationid", [])
-                if "doi" in e.get("eidtype", "").lower()), "")
+    # El DOI viene en "articleids" (lista de dicts); "elocationid" es un string.
+    doi = next((a.get("value", "") for a in info.get("articleids", [])
+                if a.get("idtype", "").lower() == "doi"), "")
     if not doi:
-        m = RE_DOI.search(info.get("elocationid", "") if isinstance(info.get("elocationid"), str) else "")
+        eloc = info.get("elocationid", "")
+        m = RE_DOI.search(eloc if isinstance(eloc, str) else "")
         doi = m.group() if m else ""
     return {
         "_fuente": "PubMed", "_tipo": "articulo", "type": "journal-article",
@@ -236,14 +262,15 @@ def buscar_pubmed_texto(termino, autor=""):
     if autor:
         q = (q + " " if q else "") + f"{autor}[Author]"
     url = (f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-           f"?db=pubmed&term={urllib.parse.quote(q)}&retmax=6&retmode=json")
+           f"?db=pubmed&term={urllib.parse.quote(q)}&retmax=6&retmode=json"
+           f"&sort=relevance{_params_ncbi()}")
     data = fetch_json(url)
     out = []
     if data:
         ids = data.get("esearchresult", {}).get("idlist", [])
         if ids:
             url2 = (f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-                    f"?db=pubmed&id={','.join(ids)}&retmode=json")
+                    f"?db=pubmed&id={','.join(ids)}&retmode=json{_params_ncbi()}")
             data2 = fetch_json(url2)
             if data2:
                 res = data2.get("result", {})
@@ -254,48 +281,26 @@ def buscar_pubmed_texto(termino, autor=""):
     return out
 
 
-def buscar_scielo_doi(doi):
-    url = (f"https://search.scielo.org/api/v2/search/"
-           f"?q=do:{urllib.parse.quote(limpiar_doi(doi))}&count=1&output=json")
-    data = fetch_json(url)
-    if data:
-        hits = data.get("hits", {}).get("hits", [])
-        if hits:
-            return normalizar_scielo(hits[0].get("_source", {}), limpiar_doi(doi))
-    return None
-
-
 def buscar_scielo_texto(termino="", autor=""):
-    q = termino or ""
+    """SciELO no ofrece una API pública de búsqueda libre; sus artículos con DOI
+    se depositan en CrossRef bajo el miembro 530 (FapUNIFESP / SciELO), así que
+    se consulta CrossRef filtrando por ese depositante. Cubre los artículos de
+    la red SciELO que tienen DOI registrado."""
+    params = {"rows": "6", "select": CR_SELECT, "filter": "member:530"}
+    if termino:
+        params["query.bibliographic"] = termino
     if autor:
-        q = (q + " " if q else "") + f"au:({autor})"
-    url = (f"https://search.scielo.org/api/v2/search/"
-           f"?q={urllib.parse.quote(q)}&count=6&output=json")
+        params["query.author"] = autor
+    if not termino and not autor:
+        return []
+    url = "https://api.crossref.org/works?" + urllib.parse.urlencode(params)
     data = fetch_json(url)
-    if data:
-        hits = data.get("hits", {}).get("hits", [])
-        return [normalizar_scielo(h.get("_source", {}), "") for h in hits if h.get("_source")]
-    return []
-
-
-def normalizar_scielo(src, doi_fb):
-    autores = [parse_nombre(a) for a in src.get("au", []) if a]
-    ti = src.get("ti", {})
-    if isinstance(ti, dict):
-        titulo = next(iter(ti.values()), "") if ti else ""
-    elif isinstance(ti, list):
-        titulo = ti[0] if ti else ""
-    else:
-        titulo = str(ti)
-    return {
-        "_fuente": "SciELO", "_tipo": "articulo", "type": "journal-article",
-        "title": [titulo], "author": [a for a in autores if a],
-        "published": {"date-parts": [[str(src.get("dp", ""))[:4]]]},
-        "container-title": [src.get("ta", "") or src.get("so", "")],
-        "volume": str(src.get("vi", "")), "issue": str(src.get("ip", "")),
-        "page": src.get("pg", ""), "DOI": src.get("doi", doi_fb),
-        "ISSN": src.get("is", ""),
-    }
+    out = []
+    if data and data.get("status") == "ok":
+        for it in data["message"].get("items", []):
+            it["_fuente"] = "SciELO"
+            out.append(normalizar_crossref(it))
+    return out
 
 
 def buscar_openlibrary_isbn(isbn):
@@ -359,8 +364,13 @@ def buscar_googlebooks(isbn="", titulo="", autor=""):
             partes.append(f"intitle:{titulo}")
         if autor:
             partes.append(f"inauthor:{autor}")
-        q = "+".join(partes)
-    url = f"https://www.googleapis.com/books/v1/volumes?q={urllib.parse.quote(q)}&maxResults=6"
+        q = " ".join(partes)
+    # country= es obligatorio en la práctica: sin él, Google rechaza con 403
+    # las consultas desde servidores en la nube (Render, Heroku, etc.)
+    url = (f"https://www.googleapis.com/books/v1/volumes"
+           f"?q={urllib.parse.quote(q)}&maxResults=6&country=UY")
+    if GOOGLE_BOOKS_KEY:
+        url += f"&key={GOOGLE_BOOKS_KEY}"
     data = fetch_json(url)
     out = []
     if data:
@@ -401,14 +411,67 @@ def _meta_buscador(html):
     return meta, metas
 
 
+def _titulo_pdf(data):
+    """Intenta extraer el título de los metadatos de un PDF (XMP o /Title)."""
+    try:
+        # 1) XMP (XML embebido): <dc:title>…<rdf:li …>Título</rdf:li>
+        m = re.search(rb"<dc:title>.*?<rdf:li[^>]*>(.*?)</rdf:li>", data, re.S)
+        if m:
+            t = re.sub(rb"<[^>]+>", b"", m.group(1)).decode("utf-8", "replace").strip()
+            if t and t.lower() not in ("untitled", "sin titulo", "sin título"):
+                return t
+        # 2) Diccionario de información: /Title (…) — literal o UTF-16
+        m = re.search(rb"/Title\s*\(([^)]{2,300})\)", data)
+        if m:
+            crudo = m.group(1)
+            if crudo.startswith(b"\xfe\xff"):
+                t = crudo[2:].decode("utf-16-be", "replace").strip()
+            else:
+                t = crudo.decode("latin-1", "replace").strip()
+            t = t.replace("\\(", "(").replace("\\)", ")")
+            if t and t.lower() not in ("untitled", "sin titulo", "sin título"):
+                return t
+    except Exception:
+        pass
+    return ""
+
+
+def _titulo_desde_nombre(url):
+    """Humaniza el nombre del archivo: 'guia_de_gestion_de_riesgos_es.pdf'
+    → 'Guia de gestion de riesgos'. Queda como título provisional editable."""
+    nombre = urllib.parse.unquote(url.rstrip("/").rsplit("/", 1)[-1])
+    nombre = re.sub(r"\.pdf$", "", nombre, flags=re.I)
+    nombre = re.sub(r"[_\-+]+", " ", nombre).strip()
+    nombre = re.sub(r"\s+(es|en|pt|fr|spa|eng|por)$", "", nombre, flags=re.I)
+    nombre = re.sub(r"\s+", " ", nombre).strip()
+    return nombre[:1].upper() + nombre[1:] if nombre else ""
+
+
+def _referencia_pdf(data, url_final):
+    titulo = _titulo_pdf(data) or _titulo_desde_nombre(url_final)
+    dominio = urllib.parse.urlparse(url_final).netloc.replace("www.", "")
+    return {
+        "_fuente": "Web (PDF)", "_tipo": "web", "type": "webpage",
+        "title": [titulo or "[Sin título]"], "author": [],
+        "published": {"date-parts": [[""]]},
+        "container-title": [dominio] if dominio else [],
+        "_url": url_final, "_fecha_acceso": hoy_es(),
+    }
+
+
 def buscar_url(url):
-    """Extrae metadatos de una página web; distingue artículo OJS, blog y página."""
+    """Extrae metadatos de una página web; distingue PDF, artículo OJS, blog y página."""
     url = url.strip()
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-    html, url_final = fetch_html(url)
-    if not html:
+    data, url_final, ctype = fetch_bytes(url)
+    if data is None:
         return None
+    es_pdf = ("pdf" in ctype or url_final.lower().split("?")[0].endswith(".pdf")
+              or data[:5] == b"%PDF-")
+    if es_pdf:
+        return _referencia_pdf(data, url_final)
+    html = data.decode("utf-8", errors="replace")
     meta, metas = _meta_buscador(html)
 
     # ¿Artículo académico (OJS / Highwire)?
@@ -990,6 +1053,27 @@ def _error_interno(e):
     return jsonify({"error": "Algo falló en el servidor. Probá de nuevo o ajustá la búsqueda."}), 500
 
 
+@app.get("/api/diagnostico")
+def api_diagnostico():
+    """Prueba cada base con una consulta mínima y reporta su estado.
+    Útil para verificar el servicio en producción: /api/diagnostico"""
+    pruebas = {
+        "crossref": lambda: buscar_crossref_texto(titulo="library science"),
+        "scielo": lambda: buscar_scielo_texto(termino="bibliotecas"),
+        "pubmed": lambda: buscar_pubmed_texto("library"),
+        "googlebooks": lambda: buscar_googlebooks(titulo="bibliotecología"),
+        "openlibrary": lambda: buscar_openlibrary_texto(titulo="library"),
+    }
+    estado = {}
+    for nombre, fn in pruebas.items():
+        try:
+            n = len(fn() or [])
+            estado[nombre] = f"OK · {n} resultados" if n else "responde, pero sin resultados"
+        except Exception as e:
+            estado[nombre] = f"ERROR · {type(e).__name__}: {e}"
+    return jsonify(estado)
+
+
 @app.get("/")
 def index():
     return render_template("index.html")
@@ -1011,7 +1095,6 @@ def api_buscar():
 
     if clase == "doi":
         m = (_seguro_uno(buscar_crossref_doi, valor)
-             or _seguro_uno(buscar_scielo_doi, valor)
              or _seguro_uno(buscar_url, f"https://doi.org/{limpiar_doi(valor)}"))
         if not m:
             return jsonify({"error": "No se encontró ese DOI en ninguna base."}), 404
@@ -1047,7 +1130,7 @@ def api_buscar():
 
     # Texto libre: se deriva a la búsqueda avanzada para no inundar de resultados.
     return jsonify({
-        "error": "Eso parece un título o un autor: usá la búsqueda avanzada, que ya quedó abierta.",
+        "error": "Eso parece texto libre: usá la búsqueda avanzada por autor, que ya quedó abierta.",
         "derivar": "avanzada",
     }), 400
 
@@ -1060,7 +1143,7 @@ def api_avanzada():
     anio = (d.get("anio") or "").strip()
     fuentes = d.get("fuentes") or ["crossref", "scielo", "pubmed", "googlebooks"]
     if not titulo and not autor:
-        return jsonify({"error": "Indicá al menos un título o un autor."}), 400
+        return jsonify({"error": "Indicá un autor para buscar."}), 400
     res = []
     if "crossref" in fuentes:
         res.extend(_seguro_lista(buscar_crossref_texto, titulo=titulo, autor=autor))
