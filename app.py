@@ -381,7 +381,8 @@ def buscar_openalex(titulo="", autor=""):
                        for a in w.get("authorships", [])]
             tipo = w.get("type", "article")
             out.append({
-                "_fuente": "OpenAlex", "_tipo": mapa.get(tipo, "articulo"),
+                "_fuente": "OpenAlex",
+                "_tipo": mapa.get(tipo, "articulo"),
                 "type": "journal-article" if mapa.get(tipo, "articulo") == "articulo" else tipo,
                 "title": [w.get("display_name", "") or ""],
                 "author": [a for a in autores if a],
