@@ -3,14 +3,25 @@
 
 // ───────────────────────── Estado ─────────────────────────
 
+function leerGuardado(clave, porDefecto) {
+  // Un dato corrupto en localStorage no debe romper toda la aplicación.
+  try {
+    return JSON.parse(localStorage.getItem(clave) || porDefecto);
+  } catch (e) {
+    console.warn(`Dato guardado «${clave}» ilegible; se descarta.`, e);
+    localStorage.removeItem(clave);
+    return JSON.parse(porDefecto);
+  }
+}
+
 const estado = {
   norma: localStorage.getItem("norma") || "apa7",
   normasCfg: null,           // configuración de normas.json (vía /api/normas)
-  plantillas: JSON.parse(localStorage.getItem("plantillas") || "{}"),
+  plantillas: leerGuardado("plantillas", "{}"),
   registro: null,            // meta en edición
   resultados: [],            // última búsqueda
   filtroAutor: null,
-  biblio: JSON.parse(localStorage.getItem("biblio") || "[]"),
+  biblio: leerGuardado("biblio", "[]"),
   editandoBiblio: null,      // índice de la biblio que se está editando
 };
 
@@ -471,7 +482,7 @@ function nombreNorma(clave) {
 }
 
 let fichaBiblio = 0;
-async function pintarBiblio() {
+async function pintarBiblio(intento = 0) {
   const lista = $("lista-biblio");
   const vacia = $("biblio-vacia");
   const acciones = $("acciones-biblio");
@@ -539,8 +550,31 @@ async function pintarBiblio() {
       lista.appendChild(li);
     }
   } catch (e) {
-    lista.innerHTML = "";
-    ponerEstadoBiblio(e.message);
+    if (ficha !== fichaBiblio) return;
+    // Falla típica del plan gratuito de Render: la instancia se durmió y
+    // tarda en despertar. Se reintenta solo, sin borrar nada.
+    if (intento < 3) {
+      const espera = [5, 10, 20][intento];
+      ponerEstadoBiblio(`El servidor está despertando… reintento en ${espera} s.`);
+      setTimeout(() => {
+        if (ficha === fichaBiblio) pintarBiblio(intento + 1);
+      }, espera * 1000);
+    } else {
+      lista.innerHTML = "";
+      const li = document.createElement("li");
+      li.className = "item-ref";
+      const aviso = document.createElement("div");
+      aviso.textContent = "No se pudo cargar la bibliografía (el servidor no responde). ";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "boton-secundario";
+      btn.textContent = "Reintentar";
+      btn.addEventListener("click", () => pintarBiblio());
+      aviso.appendChild(btn);
+      li.appendChild(aviso);
+      lista.appendChild(li);
+      ponerEstadoBiblio(e.message);
+    }
   }
 }
 
