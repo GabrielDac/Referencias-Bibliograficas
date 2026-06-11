@@ -371,9 +371,28 @@ def buscar_openalex(titulo="", autor=""):
     mapa = {"article": "articulo", "book": "libro", "monograph": "libro",
             "book-chapter": "capitulo", "dissertation": "tesis",
             "report": "informe", "preprint": "articulo"}
+    def _fuente_real(w):
+        """OpenAlex a veces pone al agregador (DOAJ) como fuente del trabajo
+        en lugar de la revista. Se busca la primera fuente que sea una
+        revista de verdad entre todas las ubicaciones del trabajo."""
+        candidatas = [w.get("primary_location") or {}] + (w.get("locations") or [])
+        respaldo = {}
+        for loc in candidatas:
+            s = loc.get("source") or {}
+            nombre = (s.get("display_name") or "")
+            if not nombre:
+                continue
+            if "doaj" in nombre.lower():
+                continue
+            if s.get("type") == "journal":
+                return s
+            if not respaldo:
+                respaldo = s
+        return respaldo
+
     if data:
         for w in data.get("results", []):
-            fuente = (w.get("primary_location") or {}).get("source") or {}
+            fuente = _fuente_real(w)
             biblio = w.get("biblio") or {}
             pi, pf = biblio.get("first_page"), biblio.get("last_page")
             paginas = f"{pi}-{pf}" if pi and pf and pi != pf else (pi or "")
@@ -1201,6 +1220,21 @@ def api_avanzada():
     if "openlibrary" in fuentes:
         res.extend(_seguro_lista(buscar_openlibrary_texto, titulo=titulo, autor=autor))
     res = _dedupe(res)
+    if autor:
+        # Las bases hacen coincidencia laxa por autor y devuelven trabajos
+        # ajenos. Se exige que algún autor del trabajo contenga todos los
+        # términos buscados; si el filtro vaciara la lista, se conserva tal
+        # cual para no ocultar variantes legítimas del nombre.
+        terminos = [t for t in sin_acentos(autor).lower().split() if t]
+        def _con_autor(m):
+            for a in m.get("author", []):
+                nombre = sin_acentos(f"{a.get('given','')} {a.get('family','')}").lower()
+                if all(t in nombre for t in terminos):
+                    return True
+            return False
+        filtrados = [m for m in res if _con_autor(m)]
+        if filtrados:
+            res = filtrados
     if anio:
         filtrados = [m for m in res if anio_de(m) == anio]
         if filtrados:
