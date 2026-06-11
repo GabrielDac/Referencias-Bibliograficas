@@ -285,8 +285,7 @@ async function buscar(avanzada) {
     let datos;
     if (avanzada) {
       datos = await api("/api/avanzada", {
-        titulo: $("av-titulo").value, autor: $("av-autor").value,
-        anio: $("av-anio").value, fuentes: fuentesElegidas(),
+        autor: $("av-autor").value, fuentes: fuentesElegidas(),
       });
     } else {
       datos = await api("/api/buscar", { q: $("q").value, fuentes: fuentesElegidas() });
@@ -304,8 +303,8 @@ async function buscar(avanzada) {
     if (e.derivar === "avanzada") {
       const det = document.querySelector(".avanzada");
       det.open = true;
-      $("av-titulo").value = $("q").value.trim();
-      $("av-titulo").focus();
+      $("av-autor").value = $("q").value.trim();
+      $("av-autor").focus();
       ponerEstado(e.message, "ocupado");
     } else {
       ponerEstado(e.message, "error");
@@ -326,12 +325,13 @@ function mostrarChipsAutores(consultaAutor) {
     }
   }
   // Si la búsqueda fue por autor, los chips muestran solo las personas
-  // cuyo nombre coincide con lo consultado (desambiguación de homónimos).
+  // cuyo nombre contiene TODOS los términos consultados (desambiguación
+  // de homónimos: «García Juan» no debe traer a cualquier García).
   if (consultaAutor) {
-    const términos = sinAcentos(consultaAutor).split(/\s+/).filter(Boolean);
+    const términos = sinAcentos(consultaAutor).toLowerCase().split(/\s+/).filter(Boolean);
     const coinciden = new Map(
       [...vistos].filter(([clave]) =>
-        términos.some(t => sinAcentos(clave).includes(t)))
+        términos.every(t => sinAcentos(clave).includes(t)))
     );
     if (coinciden.size) {
       vistos.clear();
@@ -374,12 +374,15 @@ function mostrarResultados() {
     b.type = "button";
     const titulo = Array.isArray(m.title) ? m.title[0] : m.title;
     const autores = (m.author || []).slice(0, 3).map(a => a.family).filter(Boolean).join("; ");
+    const ct = m["container-title"];
+    const revista = Array.isArray(ct) ? (ct[0] || "") : (ct || "");
+    const casa = revista || m.publisher || "";
     b.innerHTML = "";
     const fuerte = document.createElement("strong");
     fuerte.textContent = titulo || "[Sin título]";
     const linea = document.createElement("span");
     linea.className = "meta-linea";
-    linea.textContent = [autores, anioDe(m) || "s. f.",
+    linea.textContent = [autores, anioDe(m) || "s. f.", casa,
       NOMBRES_TIPO[m._tipo] || m._tipo, m._fuente].filter(Boolean).join(" · ");
     b.append(fuerte, linea);
     b.addEventListener("click", () => cargarRegistro(m));
