@@ -355,6 +355,47 @@ def buscar_openlibrary_texto(titulo="", autor=""):
     return out
 
 
+def buscar_openalex(titulo="", autor=""):
+    """OpenAlex: índice académico abierto (~250 millones de trabajos).
+    Es el equivalente con API pública de lo que cubre Google Académico."""
+    if not titulo and not autor:
+        return []
+    params = {"per-page": "6", "mailto": "refgenerator@gmail.com"}
+    if titulo:
+        params["search"] = titulo
+    if autor:
+        params["filter"] = f"raw_author_name.search:{autor}"
+    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(params)
+    data = fetch_json(url)
+    out = []
+    mapa = {"article": "articulo", "book": "libro", "monograph": "libro",
+            "book-chapter": "capitulo", "dissertation": "tesis",
+            "report": "informe", "preprint": "articulo"}
+    if data:
+        for w in data.get("results", []):
+            fuente = (w.get("primary_location") or {}).get("source") or {}
+            biblio = w.get("biblio") or {}
+            pi, pf = biblio.get("first_page"), biblio.get("last_page")
+            paginas = f"{pi}-{pf}" if pi and pf and pi != pf else (pi or "")
+            autores = [parse_nombre((a.get("author") or {}).get("display_name", ""))
+                       for a in w.get("authorships", [])]
+            tipo = w.get("type", "article")
+            out.append({
+                "_fuente": "OpenAlex", "_tipo": mapa.get(tipo, "articulo"),
+                "type": "journal-article" if mapa.get(tipo, "articulo") == "articulo" else tipo,
+                "title": [w.get("display_name", "") or ""],
+                "author": [a for a in autores if a],
+                "published": {"date-parts": [[str(w.get("publication_year", "") or "")]]},
+                "container-title": [fuente.get("display_name", "") or ""],
+                "volume": biblio.get("volume", "") or "",
+                "issue": biblio.get("issue", "") or "",
+                "page": paginas,
+                "DOI": limpiar_doi((w.get("doi") or "").replace("https://doi.org/", "")),
+                "ISSN": fuente.get("issn_l", "") or "",
+            })
+    return out
+
+
 def buscar_googlebooks(isbn="", titulo="", autor=""):
     if isbn:
         q = f"isbn:{re.sub(r'[^0-9Xx]', '', isbn)}"
@@ -1061,6 +1102,7 @@ def api_diagnostico():
         "crossref": lambda: buscar_crossref_texto(titulo="library science"),
         "scielo": lambda: buscar_scielo_texto(termino="bibliotecas"),
         "pubmed": lambda: buscar_pubmed_texto("library"),
+        "openalex": lambda: buscar_openalex(autor="Ranganathan"),
         "googlebooks": lambda: buscar_googlebooks(titulo="bibliotecología"),
         "openlibrary": lambda: buscar_openlibrary_texto(titulo="library"),
     }
@@ -1141,7 +1183,7 @@ def api_avanzada():
     titulo = (d.get("titulo") or "").strip()
     autor = (d.get("autor") or "").strip()
     anio = (d.get("anio") or "").strip()
-    fuentes = d.get("fuentes") or ["crossref", "scielo", "pubmed", "googlebooks"]
+    fuentes = d.get("fuentes") or ["crossref", "scielo", "pubmed", "openalex", "openlibrary"]
     if not titulo and not autor:
         return jsonify({"error": "Indicá un autor para buscar."}), 400
     res = []
@@ -1151,6 +1193,8 @@ def api_avanzada():
         res.extend(_seguro_lista(buscar_scielo_texto, termino=titulo, autor=autor))
     if "pubmed" in fuentes:
         res.extend(_seguro_lista(buscar_pubmed_texto, titulo, autor=autor))
+    if "openalex" in fuentes:
+        res.extend(_seguro_lista(buscar_openalex, titulo=titulo, autor=autor))
     if "googlebooks" in fuentes:
         res.extend(_seguro_lista(buscar_googlebooks, titulo=titulo, autor=autor))
     if "openlibrary" in fuentes:
