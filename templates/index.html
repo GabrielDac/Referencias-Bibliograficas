@@ -29,7 +29,7 @@
     <h2 id="t-busqueda">1 · Buscar</h2>
 
     <label for="q" class="etiqueta">Pegá lo que tengas</label>
-    <p class="ayuda" id="ayuda-q">Acepta DOI, ISBN, PMID, YouTube, página web o blog.</p>
+    <p class="ayuda" id="ayuda-q">Acepta DOI, ISBN, PMID, YouTube o Página web.</p>
     <div class="fila-busqueda">
       <input id="q" type="text" autocomplete="off" spellcheck="false"
              aria-describedby="ayuda-q"
@@ -38,19 +38,12 @@
     </div>
 
     <details class="avanzada">
-      <summary>Búsqueda avanzada (título, autor, año y bases)</summary>
+      <summary>Búsqueda avanzada (autor y bases)</summary>
+      <p class="ayuda">Buscá por autor en las bases que elijas. Los homónimos se pueden separar con los chips de «Autores encontrados».</p>
       <div class="grilla-avanzada">
-        <div>
-          <label for="av-titulo" class="etiqueta">Título</label>
-          <input id="av-titulo" type="text" placeholder="palabras del título">
-        </div>
         <div>
           <label for="av-autor" class="etiqueta">Autor</label>
           <input id="av-autor" type="text" placeholder="ej.: García Juan">
-        </div>
-        <div>
-          <label for="av-anio" class="etiqueta">Año</label>
-          <input id="av-anio" type="text" inputmode="numeric" placeholder="ej.: 2019">
         </div>
       </div>
       <fieldset class="fuentes">
